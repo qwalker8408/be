@@ -20,7 +20,7 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
   const [metrics, setMetrics] = useState([])
   console.log('%c⧭ tradingData length', 'color: #ffcc00', tradingData.length);
   const [latestStorageId, setLatestStorageId] = useState<string | null>(null);
-  const [websocket] = useState(new WebSocket(
+  const [websocket, setWebsocket] = useState(new WebSocket(
     `wss://ws.eodhistoricaldata.com/ws/crypto?api_token=${process.env.EXPO_PUBLIC_EODHD_API_TOKEN}`,
   ))
   console.log('latestStorageId', latestStorageId);
@@ -127,6 +127,9 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
 
       websocket.onclose = () => {
         console.log('WebSocket closed, reconnecting...');
+        setWebsocket(new WebSocket(
+          `wss://ws.eodhistoricaldata.com/ws/crypto?api_token=${process.env.EXPO_PUBLIC_EODHD_API_TOKEN}`,
+        ));
       };
 
       websocket.onerror = (error) => {
@@ -138,7 +141,7 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
       // TODO - a bug occurs here for some reason on ios, to reenact, comment out then comment back in while its running
       return () => websocket.close();
     }
-  }, [latestStorageId, setTradingData, tradingData, websocket]);
+  }, [latestStorageId, tradingData, websocket]);
 
   return (
     <Provider
