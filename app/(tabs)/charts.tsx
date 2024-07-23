@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { format, addMinutes, startOfHour, startOfDay, addHours } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, SafeAreaView, Text, View, Dimensions, Pressable } from 'react-native';
@@ -27,6 +28,7 @@ export default function Charts() {
   const { tradingData, metrics } = useTradingData()
   console.log('tradingData length on charts', tradingData.length);
   const [selectedInterval, setSelectedInterval] = useState('1H')
+  const [hiddenTickers, setHiddenTickers] = useState<('BTC-USD' | 'ETH-USD')[]>([])
   console.log('selectedInterval', selectedInterval);
   const [labels, setLabels] = useState<string[]>([])
   const [intervals, setIntervals] = useState<Date[] | []>([])
@@ -66,7 +68,6 @@ export default function Charts() {
         }
         const priceAtInterval = tradingData.filter(td => td.s === 'ETH-USD').find(item => {
           const date = new Date(item.t);
-          console.log('date', date);
           return date >= interval && date < addMinutes(interval, 1);
         });
         if (priceAtInterval) {
@@ -80,16 +81,20 @@ export default function Charts() {
         return index % 12 === 0 ? format(el, 'HH:mm') : '';
       });
       setLabels(formattedLabels);
-      setPriceRange([
-        {
+      const visibleTickers = []
+      if (!hiddenTickers.includes('BTC-USD')) {
+        visibleTickers.push({
           data: pricesBTC,
           color: () => 'orange'
-        },
-        {
+        })
+      }
+      if (!hiddenTickers.includes('ETH-USD')) {
+        visibleTickers.push({
           data: pricesETH,
           color: () => 'white'
-        }
-      ]);
+        })
+      }
+      setPriceRange(visibleTickers);
     }
     if (selectedInterval === '1H') {
       let lastKnownPrice = 0;
@@ -129,16 +134,20 @@ export default function Charts() {
         return index % 15 === 0 ? format(el, 'HH:mm') : '';
       });
       setLabels(formattedLabels);
-      setPriceRange([
-        {
+      const visibleTickers = []
+      if (!hiddenTickers.includes('BTC-USD')) {
+        visibleTickers.push({
           data: pricesBTC,
           color: () => 'orange'
-        },
-        {
+        })
+      }
+      if (!hiddenTickers.includes('ETH-USD')) {
+        visibleTickers.push({
           data: pricesETH,
           color: () => 'white'
-        },
-      ]);
+        })
+      }
+      setPriceRange(visibleTickers);
     }
     if (selectedInterval === '1D') {
       const now = new Date();
@@ -181,18 +190,22 @@ export default function Charts() {
         return index % 6 === 0 ? `${format(el, 'HH:mm')}` : '';
       });
       setLabels(formattedLabels);
-      setPriceRange([
-        {
+      const visibleTickers = []
+      if (!hiddenTickers.includes('BTC-USD')) {
+        visibleTickers.push({
           data: pricesBTC,
           color: () => 'orange'
-        },
-        {
+        })
+      }
+      if (!hiddenTickers.includes('ETH-USD')) {
+        visibleTickers.push({
           data: pricesETH,
           color: () => 'white'
-        }
-      ]);
+        })
+      }
+      setPriceRange(visibleTickers);
     }
-  }, [intervals, selectedInterval, tradingData])
+  }, [hiddenTickers, intervals, selectedInterval, tradingData])
 
   // 1 - set the intervals first
   useEffect(() => {
@@ -336,6 +349,14 @@ export default function Charts() {
   }), [labels, priceRange]);
 
 
+  const handleTickerVisibility = (selectedItem: 'BTC-USD' | 'ETH-USD') => {
+    setHiddenTickers(prevState => {
+      if (prevState.includes(selectedItem)) {
+        return prevState.filter(el => el !== selectedItem)
+      }
+      return [...prevState, selectedItem]
+    })
+  }
 
   console.log('labels', labels);
   console.log('priceRange', priceRange);
@@ -364,11 +385,14 @@ export default function Charts() {
             withHorizontalLines={false}
             withVerticalLabels={true}
             yLabelsOffset={0}
+            fromZero={true}
+            bezier
+          // hidePointsAtIndex={intervals.map((interval, index) => interval > new Date() && index)}
           />
         ) : null}
       </ThemedView>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="subtitle">Select Interval</ThemedText>
+        <ThemedText type="subtitle">Select Interval & Visibility</ThemedText>
       </ThemedView>
       <View style={styles.buttonWrapper}>
         <Pressable onPress={() => setSelectedInterval('1D')}>
@@ -383,7 +407,26 @@ export default function Charts() {
             <Text style={styles.buttonStyle}>Last hour</Text>
           </View>
         </Pressable>
-
+        <View style={styles.hiddenButtonWrapper}>
+          <Pressable onPress={() => handleTickerVisibility('BTC-USD')}>
+            <View style={styles.button}>
+              {hiddenTickers.includes('BTC-USD') &&
+                <Text style={styles.buttonStyle}>
+                  <Ionicons name='eye-off' style={{ color: 'white' }} />
+                </Text>}
+              <Text style={styles.buttonStyle}>Bitcoin</Text>
+            </View>
+          </Pressable>
+          <Pressable onPress={() => handleTickerVisibility('ETH-USD')}>
+            <View style={styles.button}>
+              {hiddenTickers.includes('ETH-USD') &&
+                <Text style={styles.buttonStyle}>
+                  <Ionicons name='eye-off' style={{ color: 'white' }} />
+                </Text>}
+              <Text style={styles.buttonStyle}>Ethereum</Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -429,5 +472,11 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row'
+  },
+  hiddenButtonWrapper: {
+    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1
   }
 });

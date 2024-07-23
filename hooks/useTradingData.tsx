@@ -2,6 +2,7 @@ import React, { createContext, useEffect, useMemo, useState, ReactNode, useConte
 import { CryptoResponseType } from '@/types';
 import { MMKV } from 'react-native-mmkv';
 import throttle from 'lodash.throttle';
+import { atom, useAtom } from 'jotai';
 
 export interface TradingDataType {
   tradingData: CryptoResponseType[] | []
@@ -9,6 +10,7 @@ export interface TradingDataType {
 }
 
 const storage = new MMKV();
+const tradingDataAtom = atom<CryptoResponseType[] | []>([])
 
 const TradingDataContext = createContext(null as unknown as TradingDataType)
 
@@ -16,7 +18,7 @@ const TradingDataContext = createContext(null as unknown as TradingDataType)
 const { Provider } = TradingDataContext
 
 const TradingDataProvider = ({ children }: { children: ReactNode }) => {
-  const [tradingData, setTradingData] = useState<CryptoResponseType[] | []>([])
+  const [tradingData, setTradingData] = useAtom(tradingDataAtom)
   const [metrics, setMetrics] = useState([])
   console.log('%c⧭ tradingData length', 'color: #ffcc00', tradingData.length);
   const [latestStorageId, setLatestStorageId] = useState<string | null>(null);
@@ -133,7 +135,7 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
       };
 
       websocket.onerror = (error) => {
-        console.error('WebSocket error', error);
+        console.log('WebSocket error', error);
         websocket.close();
       };
 
