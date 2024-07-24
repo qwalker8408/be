@@ -2,7 +2,7 @@ export interface WatchListItemType {
   id: string;
   title: string;
   subTitle: string;
-  metrics: [(CryptoResponseType | null), (CryptoResponseType | null)][];
+  metric: [(CryptoResponseType | null), (CryptoResponseType | null)];
 }
 
 export interface CryptoResponseType {

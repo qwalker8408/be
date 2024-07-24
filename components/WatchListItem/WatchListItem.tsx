@@ -25,15 +25,29 @@ function ColorText({
 }
 
 export default function WatchListItem({ data }: { data: WatchListItemType }) {
+  let latest = null
+  let previous = null
+
+  if (data?.metric?.length === 2) {
+    latest = data.metric[0]
+    previous = data.metric[1]
+  }
+
+  const imageSource = latest?.s === 'BTC-USD'
+    ? require('@/assets/images/bitcoin.png')
+    : require('@/assets/images/ethereum.png')
+
+
   return (
-    <View>
-      <View style={styles.divider} />
+    <View style={styles.wrapper}>
       <View style={styles.row}>
-        <Image
-          source={require('@/assets/images/bitcoin.png')}
-          style={{ width: 20, height: 20 }}
-          resizeMode="contain"
-        />
+        {latest?.s ? (
+          <Image
+            source={imageSource}
+            style={{ width: 20, height: 20 }}
+            resizeMode="contain"
+          />
+        ) : <ActivityIndicator size="small" color="#00ff00" />}
         <View style={styles.leftSection}>
           <Link replace href="/charts" style={styles.link}>
             <View>
@@ -43,39 +57,25 @@ export default function WatchListItem({ data }: { data: WatchListItemType }) {
           </Link>
         </View>
         <View style={styles.rightSection}>
-          {Array.isArray(data.metrics) ? data.metrics.map((metric) => {
-            const [latest, previous] = metric;
-            return (
-              <View
-                key={`${metric[0]?.t}${metric[0]?.p}${metric[1]?.p}`}
-                style={styles.metricWrapper}
-              >
-                {latest?.s ? (
-                  <Image
-                    source={latest?.s === 'BTC-USD'
-                      ? require('@/assets/images/bitcoin.png')
-                      : require('@/assets/images/ethereum.png')}
-                    style={{ width: 20, height: 20 }}
-                    resizeMode="contain"
-                  />
-                ) : <ActivityIndicator size="small" color="#00ff00" />}
-                <ColorText latest={latest?.p || ''} previous={previous?.p || ''} prefix="$" />
-                <View style={styles.metricIndicatorRows}>
-                  <ColorText latest={latest?.dd || ''} previous={previous?.dd || ''} />
-                  <Text style={styles.verticalDivider}>|</Text>
-                  <ColorText latest={latest?.dc || ''} previous={previous?.dc || ''} suffix="%" />
-                </View>
-              </View>
-            );
-          }) : <ActivityIndicator size="small" color="#00ff00" />}
+          <View style={styles.metricWrapper}>
+            <ColorText latest={latest?.p || ''} previous={previous?.p || ''} prefix="$" />
+            <View style={styles.metricIndicatorRows}>
+              <ColorText latest={latest?.dd || ''} previous={previous?.dd || ''} />
+              <Text style={styles.verticalDivider}>|</Text>
+              <ColorText latest={latest?.dc || ''} previous={previous?.dc || ''} suffix="%" />
+            </View>
+          </View>
         </View>
       </View>
-      <View style={styles.divider} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    backgroundColor: 'white',
+    height: 80
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 16,
     width: '100%',
-    backgroundColor: 'white',
+    height: '100%'
   },
   heading: {
     fontWeight: 'bold',
@@ -97,12 +97,12 @@ const styles = StyleSheet.create({
   },
   rightSection: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     flex: 1,
+
   },
   metricWrapper: {
-    width: '50%',
-    alignItems: 'center',
+    width: '100%',
+    alignItems: 'flex-end',
     fontSize: 8,
     gap: 4,
   },

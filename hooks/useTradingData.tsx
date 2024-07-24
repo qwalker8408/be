@@ -1,69 +1,65 @@
-import React, { createContext, useEffect, useMemo, useState, ReactNode, useContext } from 'react';
+import React, { createContext, useEffect, useMemo, useState, ReactNode, useContext, useCallback } from 'react';
 import { CryptoResponseType } from '@/types';
 import { MMKV } from 'react-native-mmkv';
 import throttle from 'lodash.throttle';
-import { atom, useAtom } from 'jotai';
+import { atom, useAtom, useAtomValue } from 'jotai';
 
+
+type subscribedTicker = 'BTC-USD' | 'ETH-USD'
+type latestCryptoObj = CryptoResponseType
+type prevCryptoObj = CryptoResponseType
+type getMetricType = (cryptoPair: subscribedTicker) => [latestCryptoObj: latestCryptoObj, prevCryptoObj: prevCryptoObj]
 export interface TradingDataType {
+  tradingDataNewest: CryptoResponseType[] | []
+  subscribedTickers: (subscribedTicker)[]
   tradingData: CryptoResponseType[] | []
-  metrics: [[CryptoResponseType, CryptoResponseType], [CryptoResponseType, CryptoResponseType]]
+  getMetric: getMetricType
+  lastUpdate: Date | ''
 }
 
 const storage = new MMKV();
 const tradingDataAtom = atom<CryptoResponseType[] | []>([])
+const websocketAtom = atom(new WebSocket(
+  `wss://ws.eodhistoricaldata.com/ws/crypto?api_token=${process.env.EXPO_PUBLIC_EODHD_API_TOKEN}`,
+))
+const subscribedTickersAtom = atom<(subscribedTicker)[]>(['BTC-USD', 'ETH-USD'])
 
 const TradingDataContext = createContext(null as unknown as TradingDataType)
-
 
 const { Provider } = TradingDataContext
 
 const TradingDataProvider = ({ children }: { children: ReactNode }) => {
   const [tradingData, setTradingData] = useAtom(tradingDataAtom)
-  const [metrics, setMetrics] = useState([])
+  // NOTE this is probably a BE request upon load but leave it for now
+  const subscribedTickers = useAtomValue(subscribedTickersAtom)
   console.log('%c⧭ tradingData length', 'color: #ffcc00', tradingData.length);
+  const [websocket, setWebsocket] = useAtom(websocketAtom)
   const [latestStorageId, setLatestStorageId] = useState<string | null>(null);
-  const [websocket, setWebsocket] = useState(new WebSocket(
-    `wss://ws.eodhistoricaldata.com/ws/crypto?api_token=${process.env.EXPO_PUBLIC_EODHD_API_TOKEN}`,
-  ))
   console.log('latestStorageId', latestStorageId);
 
-  const tickerInformation = useMemo(() => tradingData.slice().reverse(), [tradingData]);
+  const tradingDataNewest = useMemo(() => tradingData.slice().reverse(), [tradingData]);
+  const lastUpdate = useMemo(() => {
+    if (tradingDataNewest[0]?.t) {
+      return new Date(tradingDataNewest[0]?.t)
+    }
+    return null
+  }, [tradingDataNewest])
 
-  const latestBitcoinInfo = useMemo(() => {
-    if (tickerInformation.length) {
-      const btcUSDIndex = tickerInformation.findIndex(el => el.s === 'BTC-USD');
-      const latestBtcUSD = btcUSDIndex !== -1 ? tickerInformation[btcUSDIndex] : null;
-      const previousBtcUSD = tickerInformation.slice(btcUSDIndex + 1).find(el => el.s === 'BTC-USD');
-      if (latestBtcUSD && previousBtcUSD) {
-        return [latestBtcUSD, previousBtcUSD];
+  const getMetric = useCallback((ticker: subscribedTicker) => {
+    if (tradingDataNewest.length) {
+      const cryptoIndex = tradingDataNewest.findIndex(el => el.s === ticker);
+      const latestUSD = cryptoIndex !== -1 ? tradingDataNewest[cryptoIndex] : null;
+      const previousUSD = tradingDataNewest.slice(cryptoIndex + 1).find(el => el.s === ticker);
+      if (latestUSD && previousUSD) {
+        return [latestUSD, previousUSD];
       }
       return null;
     }
     return null;
-  }, [tickerInformation]);
-
-  const latestEthereumInfo = useMemo(() => {
-    if (tickerInformation.length) {
-      const ethUSDIndex = tickerInformation.findIndex(el => el.s === 'ETH-USD');
-      const latestEthUSD = ethUSDIndex !== -1 ? tickerInformation[ethUSDIndex] : null;
-      const previousEthUSD = tickerInformation.slice(ethUSDIndex + 1).find(el => el.s === 'ETH-USD');
-      if (latestEthUSD && previousEthUSD) {
-        return [latestEthUSD, previousEthUSD];
-      }
-      return null;
-    }
-    return null;
-  }, [tickerInformation]);
+  }, [tradingDataNewest]) as getMetricType
 
   useEffect(() => {
-    if (latestEthereumInfo && latestBitcoinInfo) {
-      // @ts-expect-error will complete the types for this
-      setMetrics([latestBitcoinInfo, latestEthereumInfo])
-    }
-  }, [latestBitcoinInfo, latestEthereumInfo, setMetrics])
 
-  useEffect(() => {
-    // storage.clearAll()
     const allStorages = storage.getAllKeys();
     if (allStorages.length) {
       console.log('allStorages', allStorages);
@@ -85,11 +81,12 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
   }, [setTradingData]);
 
   useEffect(() => {
+
     websocket.onopen = () => {
       console.log('opened')
       const message = JSON.stringify({
         action: "subscribe",
-        symbols: "ETH-USD,BTC-USD",
+        symbols: subscribedTickers.join(','),
       });
       websocket.send(message);
     };
@@ -114,6 +111,10 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
             const fileSizeBits = lastKnownCacheObject.length * 2 * 16;
             const fileSizeBytes = fileSizeBits / (8 * 1024);
             console.log('fileSizeBytes', fileSizeBytes);
+            if (tradingData.length > 300) {
+              setTradingData([])
+              storage.clearAll()
+            }
             if (fileSizeBytes > 5900 && fileSizeBytes < 6000) {
               const newIndex = latestStorageId.split('-').at(-1);
               if (newIndex) {
@@ -139,17 +140,18 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
         websocket.close();
       };
 
-      // https://stackoverflow.com/questions/77950038/failed-websocket-is-closed-before-the-connection-is-established-on-xcode-simu
-      // TODO - a bug occurs here for some reason on ios, to reenact, comment out then comment back in while its running
       return () => websocket.close();
     }
-  }, [latestStorageId, tradingData, websocket]);
+  }, [latestStorageId, setTradingData, setWebsocket, subscribedTickers, tradingData, websocket]);
 
   return (
     <Provider
       value={{
-        metrics,
-        tradingData
+        lastUpdate,
+        tradingDataNewest,
+        subscribedTickers,
+        tradingData,
+        getMetric,
       }}>
       {children}
     </Provider>
