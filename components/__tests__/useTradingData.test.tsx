@@ -7,11 +7,10 @@ import { MMKV } from 'react-native-mmkv';
 jest.mock('react-native-mmkv', () => require('__mocks__/MMKV'));
 
 const TestComponent: React.FC = () => {
-  const { tradingData, metrics } = useTradingData();
+  const { tradingData } = useTradingData();
   return (
     <>
       <Text testID="tradingDataLength">{tradingData.length}</Text>
-      <Text testID="metricsLength">{metrics.length}</Text>
     </>
   );
 };
@@ -33,7 +32,7 @@ describe('useTradingData hook', () => {
     global.WebSocket = jest.fn(() => mockWebSocket) as any;
   });
 
-  it('should initialize trading data and metrics', async () => {
+  it('should initialise websocket and ensure it works', async () => {
     const { findByTestId } = render(
       <TradingDataProvider>
         <TestComponent />
@@ -51,9 +50,7 @@ describe('useTradingData hook', () => {
 
     // Assertions
     const tradingDataLength = await findByTestId('tradingDataLength');
-    const metricsLength = await findByTestId('metricsLength');
 
     expect(tradingDataLength.props.children).toBeGreaterThan(0);
-    expect(metricsLength.props.children).toBeGreaterThan(0);
   });
 });

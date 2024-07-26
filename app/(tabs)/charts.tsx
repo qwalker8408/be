@@ -8,8 +8,6 @@ import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import WatchListItem from '@/components/WatchListItem/WatchListItem';
 import { graphColors } from '@/constants/Graph'
-import Svg, { Rect, Text as TextSVG } from 'react-native-svg';
-import { CryptoResponseType } from '@/types';
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -19,7 +17,7 @@ const chartConfig = {
   color: (opacity = 1) => `black`,
   strokeWidth: 2, // optional, default 3
   propsForDots: {
-    r: "0.5",
+    r: "4",
     strokeWidth: "2",
     stroke: "#000000"
   },
@@ -29,11 +27,10 @@ const chartConfig = {
 };
 
 export default function Charts() {
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0, visible: true, value: 0 })
+  const [clickedPoint, setClickedPoint] = useState<{ x: number, y: number, value: number } | null>(null);
   const { tradingDataNewest, subscribedTickers, getMetric, lastUpdate } = useTradingData()
   const [selectedInterval, setSelectedInterval] = useState<'1D' | '1H'>('1H')
   const [visibleTickers, setVisibleTickers] = useState<('BTC-USD' | 'ETH-USD')[]>(subscribedTickers)
-  console.log('selectedInterval', selectedInterval);
   const [labels, setLabels] = useState<string[]>([])
   const [intervals, setIntervals] = useState<Date[] | []>([])
   const [priceRange, setPriceRange] = useState<{
@@ -141,8 +138,6 @@ export default function Charts() {
       const maxPrice = sortedPrices?.at(0) ? parseFloat(sortedPrices?.at(0)?.p) * 1.001 : 0;
       // @ts-expect-error
       const minPrice = sortedPrices?.at(0) ? parseFloat(sortedPrices?.at(0)?.p) * 0.999 : 0; // Adjusted to add buffer below the min price
-      console.log('maxPrice', maxPrice);
-      console.log('minPrice', minPrice);
       setMaxChartPrice(maxPrice)
       setMinChartPrice(minPrice)
 
@@ -150,7 +145,6 @@ export default function Charts() {
   }, [minChartPrice, sortedPrices, visibleTickers])
 
 
-  console.log('priceRange', priceRange);
 
   return (
     <SafeAreaView>
@@ -190,8 +184,29 @@ export default function Charts() {
             maxY={maxChartPrice}
             yAxisInterval={1}
             bezier
+            onDataPointClick={({ x, y, dataset, index }) => {
+              const value = dataset.data[index];
+              setClickedPoint(prevState =>
+                prevState?.value === value
+                  ? null
+                  : { x, y, value }
+              );
+            }}
           />
         ) : <View style={{ height: 400 }} />}
+        {clickedPoint && (
+          <View
+            style={{
+              position: 'absolute',
+              backgroundColor: 'black',
+              top: clickedPoint.y - 30, // Adjust the positioning as needed
+              left: clickedPoint.x - 20, // Adjust the positioning as needed
+              padding: 4,
+              borderRadius: 5,
+            }}>
+            <Text style={{ color: 'white' }}>{`$${clickedPoint?.value?.toFixed(2)}`}</Text>
+          </View>
+        )}
       </ThemedView>
       <View style={styles.watchListWrapper}>
         {subscribedTickers.map(ticker => (

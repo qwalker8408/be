@@ -1,9 +1,9 @@
-import React, { createContext, useEffect, useMemo, useState, ReactNode, useContext, useCallback } from 'react';
+import React, { createContext, useEffect, useMemo, useState, ReactNode, useContext, useCallback, useRef } from 'react';
 import { CryptoResponseType } from '@/types';
 import { MMKV } from 'react-native-mmkv';
 import throttle from 'lodash.throttle';
 import { atom, useAtom, useAtomValue } from 'jotai';
-
+import * as Network from 'expo-network';
 
 type subscribedTicker = 'BTC-USD' | 'ETH-USD'
 type latestCryptoObj = CryptoResponseType
@@ -14,28 +14,37 @@ export interface TradingDataType {
   subscribedTickers: (subscribedTicker)[]
   tradingData: CryptoResponseType[] | []
   getMetric: getMetricType
-  lastUpdate: Date | ''
+  lastUpdate: Date | null
 }
+
+const { getNetworkStateAsync } = Network
 
 const storage = new MMKV();
 const tradingDataAtom = atom<CryptoResponseType[] | []>([])
-const websocketAtom = atom(new WebSocket(
-  `wss://ws.eodhistoricaldata.com/ws/crypto?api_token=${process.env.EXPO_PUBLIC_EODHD_API_TOKEN}`,
-))
+const websocketAtom = atom(new WebSocket(`wss://ws.eodhistoricaldata.com/ws/crypto?api_token=${process.env.EXPO_PUBLIC_EODHD_API_TOKEN}`))
 const subscribedTickersAtom = atom<(subscribedTicker)[]>(['BTC-USD', 'ETH-USD'])
-
 const TradingDataContext = createContext(null as unknown as TradingDataType)
+
 
 const { Provider } = TradingDataContext
 
 const TradingDataProvider = ({ children }: { children: ReactNode }) => {
+  const [isConnected, setIsConnected] = useState(true)
+  console.log('%c⧭ isConnected', 'color: #917399', isConnected);
   const [tradingData, setTradingData] = useAtom(tradingDataAtom)
+  console.log('tradingData count', tradingData.length);
   // NOTE this is probably a BE request upon load but leave it for now
   const subscribedTickers = useAtomValue(subscribedTickersAtom)
-  console.log('%c⧭ tradingData length', 'color: #ffcc00', tradingData.length);
   const [websocket, setWebsocket] = useAtom(websocketAtom)
   const [latestStorageId, setLatestStorageId] = useState<string | null>(null);
-  console.log('latestStorageId', latestStorageId);
+
+  const getNetworkStatus = useCallback(async () => {
+    const status = await getNetworkStateAsync();
+    setIsConnected(!!status.isConnected);
+    if (!status.isConnected) {
+      websocket.close();
+    }
+  }, [websocket]);
 
   const tradingDataNewest = useMemo(() => tradingData.slice().reverse(), [tradingData]);
   const lastUpdate = useMemo(() => {
@@ -59,7 +68,6 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
   }, [tradingDataNewest]) as getMetricType
 
   useEffect(() => {
-
     const allStorages = storage.getAllKeys();
     if (allStorages.length) {
       console.log('allStorages', allStorages);
@@ -81,7 +89,6 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
   }, [setTradingData]);
 
   useEffect(() => {
-
     websocket.onopen = () => {
       console.log('opened')
       const message = JSON.stringify({
@@ -111,7 +118,7 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
             const fileSizeBits = lastKnownCacheObject.length * 2 * 16;
             const fileSizeBytes = fileSizeBits / (8 * 1024);
             console.log('fileSizeBytes', fileSizeBytes);
-            if (tradingData.length > 300) {
+            if (tradingData.length > 10000) {
               setTradingData([])
               storage.clearAll()
             }
@@ -132,7 +139,7 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
         console.log('WebSocket closed, reconnecting...');
         setWebsocket(new WebSocket(
           `wss://ws.eodhistoricaldata.com/ws/crypto?api_token=${process.env.EXPO_PUBLIC_EODHD_API_TOKEN}`,
-        ));
+        ))
       };
 
       websocket.onerror = (error) => {
@@ -143,6 +150,14 @@ const TradingDataProvider = ({ children }: { children: ReactNode }) => {
       return () => websocket.close();
     }
   }, [latestStorageId, setTradingData, setWebsocket, subscribedTickers, tradingData, websocket]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      getNetworkStatus();
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [getNetworkStatus]);
 
   return (
     <Provider
